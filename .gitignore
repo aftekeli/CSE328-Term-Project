@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Docs directory — not tracked in git
+
+# Proposal & planning tools — local only
+
+# Python
+__pycache__/
+*.pyc
+
+# Arduino build artifacts
+build/
+.arduino15/
+
+# Edge Impulse SDK (added locally via Arduino Library Manager)
+firmware/motor_fault_detection/edge-impulse-sdk/
