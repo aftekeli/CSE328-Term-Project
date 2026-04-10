@@ -69,16 +69,24 @@ Open `firmware/motor_fault_detection/motor_fault_detection.ino` in Arduino IDE, 
 
 ## Fault Detection Logic
 
+![System Architecture](docs/system_architecture.png)
+
+The system uses two independent fault detection paths that feed a single state machine:
+
+| Path | Sensor | Method | Triggers |
+|------|--------|--------|---------|
+| Vibration | ADXL345 | Edge Impulse TinyML (Spectral + NN + K-Means) | WARNING / FAULT |
+| Temperature | MLX90614 | Classic threshold (≥ 75 °C) | FAULT |
+
+**State transitions:**
+
 ```
-ADXL345  ──→  Edge Impulse TinyML  ──→  NORMAL / WARNING / FAULT
-MLX90614 ──→  Threshold check      ──→  OVERHEAT
-                        │
-                        ▼
-                 State Machine
-              NORMAL → WARNING → FAULT → LOCKED
-                  │        │         │
-               Green     Amber    Red blink
-               LED       LED    + Relay opens (motor stops)
+NORMAL ──→ WARNING ──→ FAULT ──→ LOCKED
+  │            │           │
+Green LED   Amber LED   Red LED (blink 2 Hz)
+Motor ON    Motor ON    Relay opens → Motor OFF
 ```
 
-FAULT state is latched (LOCKED) — motor cannot restart without a manual reset to prevent accidental restart after a serious fault.
+- **LOCKED** state latches after FAULT — motor cannot restart without explicit reset
+- **K-Means anomaly block** catches unseen fault patterns not present in training data
+- Two consecutive WARNING inferences required before state upgrade (hysteresis)
