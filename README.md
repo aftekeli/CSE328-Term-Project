@@ -33,7 +33,8 @@ images/
   wiring_diagram.png
   hardware_setup.jpg
   dashboard.png
-  oled_stop.jpg
+  oled_page_a.jpg
+  oled_page_b.jpg
   oled_fault.jpg
   ei_*.png
 ```
@@ -213,29 +214,31 @@ Final firmware thresholds:
 
 ## OLED Display
 
-The OLED is not a title screen; it shows live operating data. In normal operation, it alternates between two pages every 3 seconds.
+The OLED is not a title screen; it shows live operating data. In normal operation, it alternates between Page A and Page B every 3 seconds.
 
 Page A:
 
 | OLED Item | Meaning |
 |---|---|
-| State + confidence | TinyML state and classification confidence |
-| Anomaly | Edge Impulse anomaly score |
-| Temperature bar | MLX90614 object temperature |
-| Motor + RSSI | Relay state and Wi-Fi signal strength |
+| State | Large state label: `STOP`, `NORMAL`, or `WARNING` |
+| Temperature + anomaly | MLX90614 object temperature and Edge Impulse anomaly score |
+| Confidence + motor | Classification confidence and relay/motor state |
+| Wi-Fi + cloud + RSSI | Wi-Fi status, Arduino Cloud status, and signal strength |
 
 Page B:
 
 | OLED Item | Meaning |
 |---|---|
-| State + confidence | TinyML state and classification confidence |
-| Anomaly | Edge Impulse anomaly score |
-| Temperature bar | MLX90614 object temperature |
-| Wi-Fi / Cloud / IP | Network connection, cloud connection, and IP last octet |
+| State | Large state label: `STOP`, `NORMAL`, or `WARNING` |
+| Temperature + anomaly | MLX90614 object temperature and Edge Impulse anomaly score |
+| Confidence + motor | Classification confidence and relay/motor state |
+| IP address | Full local IP address for network verification |
 
 Evidence:
 
-![OLED stop screen](images/oled_stop.jpg)
+![OLED page A](images/oled_page_a.jpg)
+
+![OLED page B](images/oled_page_b.jpg)
 
 ![OLED fault screen](images/oled_fault.jpg)
 
@@ -301,7 +304,9 @@ Dashboard:
 
 OLED states:
 
-![OLED stop](images/oled_stop.jpg)
+![OLED page A](images/oled_page_a.jpg)
+
+![OLED page B](images/oled_page_b.jpg)
 
 ![OLED fault](images/oled_fault.jpg)
 

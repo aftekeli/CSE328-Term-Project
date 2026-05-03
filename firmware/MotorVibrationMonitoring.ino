@@ -68,7 +68,7 @@ const bool COMMON_ANODE = false;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool oledOK = false;
 
-// OLED page swap: Page A (sensor data) and Page B (network info)
+// OLED page swap: Page A (Wi-Fi/cloud/RSSI) and Page B (IP address)
 // Switches every 3 seconds
 bool oledPageB = false;
 unsigned long lastOledPageSwapMs = 0;
@@ -537,73 +537,45 @@ void readTemperature() {
 // =====================================================================
 // OLED — Dual Page Display
 //
-// Page A (main):
-//   Line 1: State + Confidence
-//   Line 2: Anomaly score
-//   Line 3: Temperature + bar
-//   Line 4: Motor state + RSSI
+// Both pages share lines 1-3:
+//   Line 1 (size 2): State name (STOP / NORMAL / WARNING)
+//   Line 2 (size 1): Temp + Anomaly score
+//   Line 3 (size 1): Confidence + Motor state
 //
-// Page B (network):
-//   Line 1: State + Confidence
-//   Line 2: Anomaly score
-//   Line 3: Temperature + bar
-//   Line 4: WiFi + Cloud + IP (last octet)
+// Line 4 swaps every 3 seconds:
+//   Page A: Wi:OK Cl:OK RSSI:-29
+//   Page B: IP:192.168.1.171
 //
-// Pages swap every 3 seconds automatically.
 // FAULT screen: full-screen warning, no page swap.
 // =====================================================================
 
 // Helper: draw the common top 3 lines (used by both pages)
 void drawOledCommonLines() {
-  display.setTextSize(1);
-
-  // Line 1: state + confidence
+  // Line 1: state name in large text
+  display.setTextSize(2);
   display.setCursor(0, 0);
-
-  if (currentState == STATE_WARNING) {
-    display.print("! ");
-  } else if (currentState == STATE_NORMAL) {
-    display.print("> ");
-  } else if (currentState == STATE_STOP) {
-    display.print("S ");
-  } else {
-    display.print("* ");
-  }
-
   display.print(shortStateName(currentState));
 
-  display.setCursor(74, 0);
-  display.print("Conf:");
-  display.print((int)(lastConfidence * 100.0f));
-  display.print("%");
-
-  // Line 2: anomaly score
-  display.setCursor(0, 16);
-  display.print("Anomaly:");
-  display.print(lastAnomaly, 2);
-
-  // Line 3: temperature + bar
-  display.setCursor(0, 32);
+  // Line 2: temperature + anomaly
+  display.setTextSize(1);
+  display.setCursor(0, 20);
   display.print("Temp:");
   display.print(objectTempC, 1);
   display.print("C");
 
-  int barX = 78;
-  int barY = 33;
-  int barW = 48;
-  int barH = 7;
+  display.setCursor(74, 20);
+  display.print("Anom:");
+  display.print(lastAnomaly, 2);
 
-  display.drawRect(barX, barY, barW, barH, SSD1306_WHITE);
+  // Line 3: confidence + motor state
+  display.setCursor(0, 34);
+  display.print("Conf:");
+  display.print((int)(lastConfidence * 100.0f));
+  display.print("%");
 
-  float tempForBar = objectTempC;
-  if (tempForBar < 25.0f) tempForBar = 25.0f;
-  if (tempForBar > 45.0f) tempForBar = 45.0f;
-
-  int fillW = (int)((tempForBar - 25.0f) * (barW - 2) / 20.0f);
-  if (fillW < 0) fillW = 0;
-  if (fillW > barW - 2) fillW = barW - 2;
-
-  display.fillRect(barX + 1, barY + 1, fillW, barH - 2, SSD1306_WHITE);
+  display.setCursor(74, 34);
+  display.print("Motor:");
+  display.print(motorOn ? "ON" : "OFF");
 }
 
 void updateOLED() {
@@ -676,20 +648,7 @@ void updateOLED() {
   display.setCursor(0, 48);
 
   if (!oledPageB) {
-    // PAGE A: Motor state + RSSI
-    display.print("Motor:");
-    display.print(motorOn ? "ON " : "OFF");
-
-    display.setCursor(60, 48);
-    if (WiFi.status() == WL_CONNECTED) {
-      display.print("RSSI:");
-      display.print(WiFi.RSSI());
-    } else {
-      display.print("WiFi:--");
-    }
-
-  } else {
-    // PAGE B: WiFi + Cloud + IP last octet
+    // PAGE A: WiFi + Cloud + RSSI
     display.print("Wi:");
     if (WiFi.status() == WL_CONNECTED) {
       display.print("OK ");
@@ -705,9 +664,17 @@ void updateOLED() {
     }
 
     if (WiFi.status() == WL_CONNECTED) {
-      IPAddress ip = WiFi.localIP();
-      display.print(".");
-      display.print(ip[3]);
+      display.print("RSSI:");
+      display.print(WiFi.RSSI());
+    }
+
+  } else {
+    // PAGE B: Full IP address
+    if (WiFi.status() == WL_CONNECTED) {
+      display.print("IP:");
+      display.print(WiFi.localIP());
+    } else {
+      display.print("IP:Not connected");
     }
   }
 
