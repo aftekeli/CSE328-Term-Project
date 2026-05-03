@@ -36,6 +36,8 @@ images/
   oled_page_b.jpg
   oled_fault.jpg
   ei_*.png
+videos/
+  project_demo.mp4                  Live demonstration video
 ```
 
 ## Components
@@ -287,7 +289,11 @@ Local serial commands are also available at `9600` baud:
 
 ## Evidence
 
-The system was tested with the physical hardware setup. Dashboard screenshots, OLED states, and hardware photos are included throughout this report. A live demonstration will be performed during the oral presentation on 08.05.2026.
+The system was tested with the physical hardware setup. Dashboard screenshots, OLED states, hardware photos, and a live demonstration video are included in this repository.
+
+Demo video: [Project demonstration video](videos/project_demo.mp4)
+
+External streaming link: [Watch the demo video on SharePoint][sharepoint-demo-video]
 
 ## Results
 
@@ -304,10 +310,12 @@ The final system satisfies the project requirements:
 | Cloud dashboard monitoring | Dashboard screenshot included |
 | Cloud dashboard control | `motorCommand` and `resetFaultCommand` |
 | Wiring table + diagram | Included |
-| Evidence | Dashboard, hardware, OLED, Edge Impulse screenshots |
+| Evidence | Dashboard, hardware, OLED, Edge Impulse screenshots, demo video |
 
 ## Limitations
 
 - All collected samples were used for training without a separate test split. The reported accuracy (99.9%) reflects training set performance. Despite this, the system performed correctly during live testing on the physical prototype.
 - The three motor states (STOP, NORMAL, WARNING) produce clearly different vibration patterns, which makes classification easier. A real industrial motor with more subtle fault types would need more training data.
 - The temperature fault threshold (32.0 C) is set low for demo purposes and should be adjusted for real applications.
+
+[sharepoint-demo-video]: https://akdeniz-my.sharepoint.com/:v:/g/personal/20220808617_ogr_akdeniz_edu_tr/IQCHF4eCXK6uSpyXAuW32T1iAUYRYIJSyH79AQonBrvTuKU?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=RbgIL0
