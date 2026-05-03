@@ -1,4 +1,3 @@
-#include "arduino_secrets.h"
 #include <Wire.h>
 #include <WiFi.h>
 #include <Adafruit_GFX.h>

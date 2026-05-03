@@ -18,7 +18,6 @@ GitHub repository: https://github.com/aftekeli/CSE328-Term-Project
 firmware/
   MotorVibrationMonitoring.ino      Final ESP32 sketch
   thingProperties.h                 Arduino IoT Cloud variables and connection handler
-  arduino_secrets.h                 Empty credential placeholders
 model/
   ei-motor-vibration-monitoring-arduino-1_0_3.zip
 data/
@@ -270,17 +269,8 @@ model/ei-motor-vibration-monitoring-arduino-1_0_3.zip
 firmware/MotorVibrationMonitoring.ino
 ```
 
-6. Configure Arduino IoT Cloud credentials in `firmware/arduino_secrets.h`.
-
-The repository keeps this file with empty placeholders:
-
-```cpp
-#define SECRET_DEVICE_KEY ""
-#define SECRET_OPTIONAL_PASS ""
-#define SECRET_SSID ""
-```
-
-7. Select an ESP32 board in Arduino IDE and upload the sketch.
+6. Configure Wi-Fi and device credentials in Arduino IoT Cloud.
+7. Upload the sketch from Arduino IoT Cloud. The Cloud upload flow provides `SECRET_SSID`, `SECRET_OPTIONAL_PASS`, and `SECRET_DEVICE_KEY` automatically; no local credential file is committed.
 8. Open Arduino IoT Cloud dashboard.
 9. Use `motorCommand` to start/stop the motor and `resetFaultCommand` to clear a latched fault.
 
@@ -342,4 +332,4 @@ The final system satisfies the project requirements:
 - The relay module is configured as active-low in firmware.
 - The motor power path should be routed through the relay contact side; the ESP32 must not power the motor directly.
 - The Edge Impulse library ZIP must be installed in Arduino IDE before compiling.
-- `arduino_secrets.h` is intentionally committed with empty values; real Wi-Fi and device credentials should be filled locally before uploading.
+- No local credential header is committed; Arduino IoT Cloud supplies `SECRET_*` values during Cloud upload.
