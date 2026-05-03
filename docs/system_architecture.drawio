@@ -1,0 +1,117 @@
+<mxfile host="Electron" agent="Mozilla/5.0" version="29.6.6">
+  <diagram id="motorai_arch" name="Page-1">
+    <mxGraphModel dx="1627" dy="1130" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=20;fontStyle=1" value="CSE328 Term Project — Motor Fault Detection System Architecture" vertex="1">
+          <mxGeometry height="32" width="760" x="200" y="15" as="geometry" />
+        </mxCell>
+        <mxCell id="runtime_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontStyle=3;fontColor=#444444" value="▶ Runtime Phase — On-Device Inference + Arduino IoT Cloud" vertex="1">
+          <mxGeometry height="22" width="460" x="30" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="adxl345" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" value="ADXL345&#xa;3-Axis Accelerometer&#xa;Interface: I2C" vertex="1">
+          <mxGeometry height="80" width="185" x="90" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="mlx90614" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" value="MLX90614 (GY-906)&#xa;IR Thermometer&#xa;Interface: I2C" vertex="1">
+          <mxGeometry height="80" width="185" x="570" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="esp32" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" value="ESP32&#xa;&#xa;① TinyML Inference&#xa;   (Edge Impulse C++ SDK)&#xa;&#xa;② State Machine&#xa;   STOP / NORMAL / WARNING&#xa;   FAULT / SENSOR_ERROR" vertex="1">
+          <mxGeometry height="210" width="240" x="320" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="oled" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1" value="OLED 128×64&#xa;Live Status Display&#xa;(I2C)" vertex="1">
+          <mxGeometry height="75" width="175" x="70" y="565" as="geometry" />
+        </mxCell>
+        <mxCell id="rgbled" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1" value="RGB LED&#xa;Green / Blue / Magenta / Red&#xa;(GPIO)" vertex="1">
+          <mxGeometry height="75" width="185" x="310" y="565" as="geometry" />
+        </mxCell>
+        <mxCell id="relay" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1" value="5V Relay Module&#xa;(GPIO)" vertex="1">
+          <mxGeometry height="75" width="165" x="555" y="565" as="geometry" />
+        </mxCell>
+        <mxCell id="dcmotor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;fontStyle=1" value="DC Motor&#xa;(Simulation Target)" vertex="1">
+          <mxGeometry height="60" width="155" x="905" y="572.5" as="geometry" />
+        </mxCell>
+        <mxCell id="wifi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13" value="Wi-Fi" vertex="1">
+          <mxGeometry height="50" width="120" x="695" y="282.5" as="geometry" />
+        </mxCell>
+        <mxCell id="arduino_cloud" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontStyle=1" value="Arduino IoT Cloud&#xa;&#xa;Dashboard&#xa;Remote Monitoring&#xa;Bidirectional Control&#xa;(Motor ON/OFF, Fault Reset)" vertex="1">
+          <mxGeometry height="130" width="220" x="890" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="ei_studio" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" value="Edge Impulse Studio&#xa;&#xa;Model Training&#xa;Performance Metrics" vertex="1">
+          <mxGeometry height="90" width="210" x="890" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="e_adxl_esp" edge="1" parent="1" source="adxl345" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="esp32" value="vibration data (I2C)">
+          <mxGeometry relative="1" x="-0.2607" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_mlx_esp" edge="1" parent="1" source="mlx90614" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="esp32" value="temperature (I2C)">
+          <mxGeometry relative="1" x="-0.4284" y="-5" as="geometry">
+            <mxPoint x="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_esp_oled" edge="1" parent="1" source="esp32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;" target="oled" value="I2C">
+          <mxGeometry relative="1" x="0.6324" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="120" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_esp_rgb" edge="1" parent="1" source="esp32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;" target="rgbled" value="GPIO">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="485" />
+              <mxPoint x="402" y="485" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_esp_relay" edge="1" parent="1" source="esp32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;" target="relay" value="GPIO">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_relay_motor" edge="1" parent="1" source="relay" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=11;" target="dcmotor" value="cuts power on FAULT">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_esp_wifi" edge="1" parent="1" source="esp32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;startArrow=block;startFill=1;fontSize=11;" target="wifi" value="cloud sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_wifi_cloud" edge="1" parent="1" source="wifi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;startArrow=block;startFill=1;fontSize=11;" target="arduino_cloud" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cloud_ei_note" edge="1" parent="1" source="ei_studio" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;dashed=1;strokeColor=#999999;" target="arduino_cloud" value="trained model deployed to ESP32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="training_box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#aaaaaa;dashed=1;dashPattern=8 4;fontSize=12;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=3;fontColor=#666666" value="▷ Training Phase (done once, offline)" vertex="1">
+          <mxGeometry height="100" width="820" x="30" y="708" as="geometry" />
+        </mxCell>
+        <mxCell id="t_sensor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11" value="ADXL345&#xa;on Motor" vertex="1">
+          <mxGeometry height="50" width="110" x="50" y="738" as="geometry" />
+        </mxCell>
+        <mxCell id="t_esp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11" value="ESP32&#xa;Data Forwarder&#xa;Sketch" vertex="1">
+          <mxGeometry height="50" width="120" x="190" y="738" as="geometry" />
+        </mxCell>
+        <mxCell id="t_cli" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11" value="PC + EI&#xa;Data Forwarder&#xa;CLI (USB)" vertex="1">
+          <mxGeometry height="50" width="120" x="390" y="738" as="geometry" />
+        </mxCell>
+        <mxCell id="t_ei" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11" value="EI Studio&#xa;Train Model&#xa;(cloud)" vertex="1">
+          <mxGeometry height="50" width="110" x="570" y="738" as="geometry" />
+        </mxCell>
+        <mxCell id="t_lib" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11" value="C++ Library&#xa;→ Flash to&#xa;ESP32" vertex="1">
+          <mxGeometry height="50" width="110" x="730" y="738" as="geometry" />
+        </mxCell>
+        <mxCell id="et1" edge="1" parent="1" source="t_sensor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;dashed=1;" target="t_esp" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="et2" edge="1" parent="1" source="t_esp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;dashed=1;" target="t_cli" value="USB serial">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="et3" edge="1" parent="1" source="t_cli" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;dashed=1;" target="t_ei" value="stream">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="et4" edge="1" parent="1" source="t_ei" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;fontSize=10;dashed=1;" target="t_lib" value="export">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
