@@ -66,7 +66,6 @@ The system has two phases. During training, vibration CSV files are collected fr
 | ADXL345 | GND | GND | Common logic ground |
 | ADXL345 | SDA | GPIO21 | Shared I2C data line |
 | ADXL345 | SCL | GPIO22 | Shared I2C clock line |
-| ADXL345 | CS / SDO | Module-dependent | Final setup was verified with the working I2C module wiring |
 | MLX90614 | VCC | 3V3 | IR thermometer supply |
 | MLX90614 | GND | GND | Common logic ground |
 | MLX90614 | SDA | GPIO21 | Shared I2C data line |
@@ -76,13 +75,15 @@ The system has two phases. During training, vibration CSV files are collected fr
 | OLED SSD1306 | SDA | GPIO21 | Shared I2C data line |
 | OLED SSD1306 | SCL | GPIO22 | Shared I2C clock line |
 | Relay module | IN | GPIO32 | Active-low relay control in firmware |
-| Relay module | VCC | 5V | Relay module supply |
-| Relay module | GND | GND | Logic-side ground |
-| Relay contact | COM / NO | Motor power path | Relay cuts motor power when FAULT is latched |
-| RGB LED | R | GPIO25 through resistor | FAULT red channel |
-| RGB LED | G | GPIO26 through resistor | STOP green channel |
-| RGB LED | B | GPIO27 through resistor | NORMAL blue channel |
-| RGB LED | Common | GND | Common-cathode configuration |
+| Relay module | VCC | Ext. PSU 5V | Relay module power from external supply |
+| Relay module | GND | Ext. PSU GND | Relay module ground from external supply |
+| Relay CH1 | COM1 | Ext. PSU 3.3V | Motor power source through relay |
+| Relay CH1 | NO1 | Motor (+) | Motor positive terminal |
+| DC Motor | (−) | Ext. PSU GND | Motor negative terminal |
+| RGB LED | R | GPIO25 | FAULT red channel |
+| RGB LED | G | GPIO26 | STOP green channel |
+| RGB LED | B | GPIO27 | NORMAL blue channel |
+| RGB LED | Common (K) | GND | Common-cathode, connected to ESP32 GND |
 
 Firmware pin definitions are in `firmware/MotorVibrationMonitoring.ino`:
 
@@ -94,6 +95,8 @@ Firmware pin definitions are in `firmware/MotorVibrationMonitoring.ino`:
 #define LED_G 26
 #define LED_B 27
 ```
+
+The ESP32 GND and the external power supply GND are connected together on the breadboard to form a common ground.
 
 ## Cloud Setup
 
@@ -155,7 +158,7 @@ Impulse configuration:
 | Axes | `accX`, `accY`, `accZ` |
 | Processing block | Spectral Analysis |
 | Learning block | Classification |
-| Anomaly block | GMM anomaly detection |
+| Anomaly block | K-Means anomaly detection |
 
 Model screenshots:
 
@@ -284,31 +287,7 @@ Local serial commands are also available at `9600` baud:
 
 ## Evidence
 
-Hardware setup:
-
-![Hardware setup](images/hardware_setup.jpg)
-
-Dashboard:
-
-![Dashboard](images/dashboard.png)
-
-OLED states:
-
-![OLED page A](images/oled_page_a.jpg)
-
-![OLED page B](images/oled_page_b.jpg)
-
-![OLED fault](images/oled_fault.jpg)
-
-System architecture:
-
-![System architecture](docs/system_architecture.png)
-
-Wiring diagram:
-
-![Wiring diagram](images/wiring_diagram.png)
-
-Demo note: the system is prepared for the oral presentation and live demonstration. The repository includes dashboard screenshots and hardware/OLED evidence images; the physical demo is performed with the ESP32, sensors, relay, motor, OLED, and Arduino IoT Cloud dashboard.
+The system was tested with the physical hardware setup. Dashboard screenshots, OLED states, and hardware photos are included throughout this report. A live demonstration will be performed during the oral presentation on 08.05.2026.
 
 ## Results
 
@@ -327,9 +306,8 @@ The final system satisfies the project requirements:
 | Wiring table + diagram | Included |
 | Evidence | Dashboard, hardware, OLED, Edge Impulse screenshots |
 
-## Known Practical Notes
+## Limitations
 
-- The relay module is configured as active-low in firmware.
-- The motor power path should be routed through the relay contact side; the ESP32 must not power the motor directly.
-- The Edge Impulse library ZIP must be installed in Arduino IDE before compiling.
-- No local credential header is committed; Arduino IoT Cloud supplies `SECRET_*` values during Cloud upload.
+- All collected samples were used for training without a separate test split. The reported accuracy (99.9%) reflects training set performance. Despite this, the system performed correctly during live testing on the physical prototype.
+- The three motor states (STOP, NORMAL, WARNING) produce clearly different vibration patterns, which makes classification easier. A real industrial motor with more subtle fault types would need more training data.
+- The temperature fault threshold (32.0 C) is set low for demo purposes and should be adjusted for real applications.
