@@ -1,5 +1,6 @@
 #include "arduino_secrets.h"
 #include <Wire.h>
+#include <WiFi.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_MLX90614.h>
@@ -9,39 +10,39 @@
 
 // =====================================================================
 // ESP32 + ADXL345 + OLED + RGB LED + RELAY + MLX90614 + EDGE IMPULSE
-// Arduino Cloud final demo sürümü
+// Arduino Cloud — Final Version
 //
 // Cloud variables:
-//   motorCommand        READWRITE  -> motor ON/OFF
-//   resetFaultCommand   READWRITE  -> FAULT reset
-//   motorRunning        READ       -> motor gerçek durumu
-//   faultLatchedCloud   READ       -> fault kilidi
+//   motorCommand        READWRITE  -> motor ON/OFF control
+//   resetFaultCommand   READWRITE  -> FAULT reset command
+//   motorRunning        READ       -> actual motor state
+//   faultLatchedCloud   READ       -> fault lock status
 //   systemState         READ       -> STOP / NORMAL / WARNING / FAULT / SENSOR_ERROR
-//   systemStateCode     READ       -> 0=STOP / 1=NORMAL / 2=WARNING / 3=FAULT / 4=SENSOR_ERROR (chart için)
+//   systemStateCode     READ       -> 0=STOP / 1=NORMAL / 2=WARNING / 3=FAULT / 4=SENSOR_ERROR
 //   faultReasonCloud    READ       -> NONE / VIB / TEMP / SENS / EI
-//   objectTempCloud     READ       -> motor gövde sıcaklığı
-//   anomalyCloud        READ       -> Edge Impulse anomaly skoru
-//   confidenceCloud     READ       -> Model confidence yüzdesi (0-100)
+//   objectTempCloud     READ       -> motor surface temperature
+//   anomalyCloud        READ       -> Edge Impulse anomaly score
+//   confidenceCloud     READ       -> model confidence percentage (0-100)
 //
-// Lokal serial komutlar:
+// Serial commands:
 //   1 -> motor ON
 //   0 -> motor OFF
 //   r -> FAULT reset
 //
-// Kritik mantık:
-//   - Motor OFF iken model sonucu state'i değiştirmez; state STOP kalır.
-//   - Motor OFF iken vibration FAULT oluşmaz.
-//   - Motor ON olduktan sonra ilk 3 saniye FAULT kontrolü yapılmaz.
-//   - Vibration FAULT için anomaly üst üste 2 inference eşiği geçmelidir.
-//   - Sıcaklık FAULT için objectTempC >= 32.0 C yeterlidir.
-//   - objectTempCloud sadece readTemperature() içinde yazılır.
-//   - anomalyCloud sadece runInference() içinde yazılır.
-//   - confidenceCloud sadece runInference() içinde yazılır.
+// Main rules:
+//   - When motor is OFF, model output does not change the state; stays STOP.
+//   - Vibration FAULT cannot happen when motor is OFF.
+//   - After motor starts, FAULT check is disabled for the first 3 seconds.
+//   - Vibration FAULT needs anomaly above threshold for 2 consecutive inferences.
+//   - Temperature FAULT triggers when objectTempC >= 32.0 C.
+//   - objectTempCloud is only written inside readTemperature().
+//   - anomalyCloud is only written inside runInference().
+//   - confidenceCloud is only written inside runInference().
 // =====================================================================
 
 
 // =====================
-// PINLER
+// PINS
 // =====================
 #define SDA_PIN 21
 #define SCL_PIN 22
@@ -67,6 +68,12 @@ const bool COMMON_ANODE = false;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool oledOK = false;
 
+// OLED page swap: Page A (sensor data) and Page B (network info)
+// Switches every 3 seconds
+bool oledPageB = false;
+unsigned long lastOledPageSwapMs = 0;
+const unsigned long OLED_PAGE_SWAP_MS = 3000;
+
 
 // =====================
 // MLX90614 / GY-906
@@ -77,8 +84,8 @@ bool mlxOK = false;
 float ambientTempC = 0.0f;
 float objectTempC = 0.0f;
 
-// Demo eşiği.
-// Çok erken kapanırsa 34.0f yapılabilir.
+// Temperature fault threshold for demo.
+// Can be increased to 34.0f if motor heats too fast.
 const float OBJECT_TEMP_FAULT_C = 32.0f;
 
 const unsigned long TEMP_READ_INTERVAL_MS = 1000;
@@ -111,18 +118,18 @@ const uint32_t WINDOW_SAMPLES = EI_INPUT_SIZE / AXES;
 const uint32_t STRIDE_SAMPLES = 10;
 const uint32_t STRIDE_VALUES = STRIDE_SAMPLES * AXES;
 
-// Kararlı demo için 2.5.
-// Normal çalışmada gereksiz FAULT riskini azaltır.
-// Aşırı dengesiz pervanede yine FAULT'a düşer.
+// Anomaly threshold set to 2.5 for stable demo.
+// Reduces false FAULT risk during normal operation.
+// Unbalanced propeller will still trigger FAULT.
 const float ANOMALY_THRESHOLD = 2.5f;
 
-// Motor çalıştıktan sonra ilk 3 saniye FAULT kontrolü kapalı.
+// FAULT check is disabled for 3 seconds after motor starts.
 const unsigned long MOTOR_FAULT_GRACE_MS = 3000UL;
 
-// State geçiş stabilizasyonu.
+// State transition needs 2 consecutive confirmations.
 const uint8_t STATE_CONFIRM_COUNT = 2;
 
-// Vibration fault için üst üste kaç inference anomaly eşiğini geçmeli.
+// Vibration fault needs anomaly above threshold for 2 consecutive inferences.
 const uint8_t VIB_FAULT_CONFIRM_COUNT = 2;
 
 const uint8_t SENSOR_ERROR_CONFIRM_COUNT = 10;
@@ -180,51 +187,34 @@ unsigned long lastCloudSyncMs = 0;
 // =====================================================================
 const char* stateName(SystemState state) {
   switch (state) {
-    case STATE_STOP:
-      return "STOP";
-    case STATE_NORMAL:
-      return "NORMAL";
-    case STATE_WARNING:
-      return "WARNING";
-    case STATE_FAULT:
-      return "FAULT";
-    case STATE_SENSOR_ERROR:
-      return "SENSOR_ERROR";
-    default:
-      return "UNKNOWN";
+    case STATE_STOP:         return "STOP";
+    case STATE_NORMAL:       return "NORMAL";
+    case STATE_WARNING:      return "WARNING";
+    case STATE_FAULT:        return "FAULT";
+    case STATE_SENSOR_ERROR: return "SENSOR_ERROR";
+    default:                 return "UNKNOWN";
   }
 }
 
 const char* shortStateName(SystemState state) {
   switch (state) {
-    case STATE_STOP:
-      return "STOP";
-    case STATE_NORMAL:
-      return "NORMAL";
-    case STATE_WARNING:
-      return "WARNING";
-    case STATE_FAULT:
-      return "FAULT";
-    case STATE_SENSOR_ERROR:
-      return "SENSOR";
-    default:
-      return "UNKNOWN";
+    case STATE_STOP:         return "STOP";
+    case STATE_NORMAL:       return "NORMAL";
+    case STATE_WARNING:      return "WARNING";
+    case STATE_FAULT:        return "FAULT";
+    case STATE_SENSOR_ERROR: return "SENSOR";
+    default:                 return "UNKNOWN";
   }
 }
 
 const char* faultReasonName(FaultReason reason) {
   switch (reason) {
-    case FAULT_REASON_VIBRATION:
-      return "VIB";
-    case FAULT_REASON_TEMPERATURE:
-      return "TEMP";
-    case FAULT_REASON_SENSOR:
-      return "SENS";
-    case FAULT_REASON_INFERENCE:
-      return "EI";
+    case FAULT_REASON_VIBRATION:   return "VIB";
+    case FAULT_REASON_TEMPERATURE: return "TEMP";
+    case FAULT_REASON_SENSOR:      return "SENS";
+    case FAULT_REASON_INFERENCE:   return "EI";
     case FAULT_REASON_NONE:
-    default:
-      return "NONE";
+    default:                       return "NONE";
   }
 }
 
@@ -250,10 +240,9 @@ bool cloudConnected() {
 
 // =====================================================================
 // CLOUD SYNC
-// Bu fonksiyon yalnızca durum/komut değişkenlerini yazar.
-// objectTempCloud -> readTemperature()
-// anomalyCloud    -> runInference()
-// confidenceCloud -> runInference()
+// objectTempCloud -> updated in readTemperature()
+// anomalyCloud    -> updated in runInference()
+// confidenceCloud -> updated in runInference()
 // =====================================================================
 void syncCloudNow() {
   motorRunning = motorOn;
@@ -329,7 +318,7 @@ void motorStop() {
   setRelayRaw(false);
   motorCommand = false;
 
-  // Motor OFF iken state'i bilinçli olarak STOP'a çekiyoruz.
+  // When motor is OFF, set state to STOP (unless fault is latched).
   if (!faultLatched) {
     currentState = STATE_STOP;
     candidateState = STATE_STOP;
@@ -394,25 +383,25 @@ void setColor(bool r, bool g, bool b) {
 
 void applyColor() {
   if (faultLatched || currentState == STATE_FAULT) {
-    setColor(true, false, false);     // FAULT -> kırmızı
+    setColor(true, false, false);     // FAULT -> red
     return;
   }
 
   switch (currentState) {
     case STATE_STOP:
-      setColor(false, true, false);   // STOP -> yeşil
+      setColor(false, true, false);   // STOP -> green
       break;
 
     case STATE_NORMAL:
-      setColor(false, false, true);   // NORMAL -> mavi
+      setColor(false, false, true);   // NORMAL -> blue
       break;
 
     case STATE_WARNING:
-      setColor(true, false, true);    // WARNING -> mor / magenta
+      setColor(true, false, true);    // WARNING -> magenta
       break;
 
     case STATE_SENSOR_ERROR:
-      setColor(true, true, true);     // SENSOR_ERROR -> beyaz
+      setColor(true, true, true);     // SENSOR_ERROR -> white
       break;
 
     default:
@@ -485,20 +474,16 @@ bool initADXL345() {
   if (!readRegister(REG_DEVID, devid)) return false;
   if (devid != 0xE5) return false;
 
-  // Standby
-  if (!writeRegister(REG_POWER_CTL, 0x00)) return false;
+  if (!writeRegister(REG_POWER_CTL, 0x00)) return false;  // Standby
   delay(10);
 
-  // FULL_RES + +/-16g
-  if (!writeRegister(REG_DATA_FORMAT, 0x0B)) return false;
+  if (!writeRegister(REG_DATA_FORMAT, 0x0B)) return false; // FULL_RES + +/-16g
   delay(10);
 
-  // 100 Hz internal data rate
-  if (!writeRegister(REG_BW_RATE, 0x0A)) return false;
+  if (!writeRegister(REG_BW_RATE, 0x0A)) return false;    // 100 Hz data rate
   delay(10);
 
-  // Measure mode
-  if (!writeRegister(REG_POWER_CTL, 0x08)) return false;
+  if (!writeRegister(REG_POWER_CTL, 0x08)) return false;  // Measure mode
   delay(10);
 
   return true;
@@ -525,9 +510,8 @@ void checkTemperatureFault() {
   }
 }
 
-// Gece düzgün çalışan sade sıcaklık mantığı.
-// Filtreleme yok.
-// objectTempCloud sadece burada güncellenir.
+// Simple temperature reading without filtering.
+// objectTempCloud is only updated here.
 void readTemperature() {
   unsigned long nowMs = millis();
 
@@ -551,76 +535,29 @@ void readTemperature() {
 
 
 // =====================================================================
-// OLED  —  Proposal Layout
-// Line 1: Inference result (state) + confidence score
-// Line 2: K-Means anomaly score
-// Line 3: Motor surface temperature + bar indicator
-// Line 4: Relay (motor) state + WiFi/EI + lock/grace
-// FAULT : Full-screen "!! MOTOR STOPPED !!" uyarısı
+// OLED — Dual Page Display
+//
+// Page A (main):
+//   Line 1: State + Confidence
+//   Line 2: Anomaly score
+//   Line 3: Temperature + bar
+//   Line 4: Motor state + RSSI
+//
+// Page B (network):
+//   Line 1: State + Confidence
+//   Line 2: Anomaly score
+//   Line 3: Temperature + bar
+//   Line 4: WiFi + Cloud + IP (last octet)
+//
+// Pages swap every 3 seconds automatically.
+// FAULT screen: full-screen warning, no page swap.
 // =====================================================================
-void updateOLED() {
-  if (!oledOK) return;
 
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-
-  // -----------------------------
-  // FAULT / SENSOR ERROR SCREEN
-  // Proposal: full-screen "!! MOTOR STOPPED !!"
-  // -----------------------------
-  if (faultLatched || currentState == STATE_FAULT || currentState == STATE_SENSOR_ERROR) {
-
-    // Satır 1 — büyük başlık
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-
-    if (currentState == STATE_SENSOR_ERROR) {
-      display.print("SENSOR!!");
-    } else {
-      display.print("!!");
-      display.setCursor(24, 0);
-      display.print("MOTOR");
-    }
-
-    // Satır 2 — alt başlık
-    display.setCursor(0, 18);
-
-    if (currentState == STATE_SENSOR_ERROR) {
-      display.setTextSize(1);
-      display.print("I2C / SENSOR ERROR");
-    } else {
-      display.print("STOPPED!");
-    }
-
-    // Satır 3 — sebep
-    display.setTextSize(1);
-    display.setCursor(0, 38);
-    display.print("Reason:");
-    display.print(faultReasonName(faultReason));
-
-    display.setCursor(70, 38);
-    display.print("T:");
-    display.print(objectTempC, 1);
-    display.print("C");
-
-    // Satır 4 — anomaly + reset ipucu
-    display.setCursor(0, 52);
-    display.print("Anom:");
-    display.print(lastAnomaly, 1);
-
-    display.setCursor(70, 52);
-    display.print("Reset:'r'");
-
-    display.display();
-    return;
-  }
-
-  // -----------------------------
-  // NORMAL / WARNING / STOP SCREEN
-  // -----------------------------
+// Helper: draw the common top 3 lines (used by both pages)
+void drawOledCommonLines() {
   display.setTextSize(1);
 
-  // Line 1: inference result + confidence
+  // Line 1: state + confidence
   display.setCursor(0, 0);
 
   if (currentState == STATE_WARNING) {
@@ -640,12 +577,12 @@ void updateOLED() {
   display.print((int)(lastConfidence * 100.0f));
   display.print("%");
 
-  // Line 2: K-Means anomaly score
+  // Line 2: anomaly score
   display.setCursor(0, 16);
   display.print("Anomaly:");
   display.print(lastAnomaly, 2);
 
-  // Line 3: motor surface temperature + bar indicator
+  // Line 3: temperature + bar
   display.setCursor(0, 32);
   display.print("Temp:");
   display.print(objectTempC, 1);
@@ -667,29 +604,111 @@ void updateOLED() {
   if (fillW > barW - 2) fillW = barW - 2;
 
   display.fillRect(barX + 1, barY + 1, fillW, barH - 2, SSD1306_WHITE);
+}
 
-  // Line 4: relay state + WiFi/EI + lock/grace
-  display.setCursor(0, 48);
-  display.print("Motor:");
-  display.print(motorOn ? "ON " : "OFF");
+void updateOLED() {
+  if (!oledOK) return;
 
-  display.setCursor(52, 48);
-  display.print("Wi:");
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
 
-  if (cloudConnected()) {
-    display.print("OK");
-  } else {
-    display.print("--");
+  // ---------------------------------
+  // FAULT / SENSOR ERROR — full screen
+  // ---------------------------------
+  if (faultLatched || currentState == STATE_FAULT || currentState == STATE_SENSOR_ERROR) {
+
+    display.setTextSize(2);
+    display.setCursor(0, 0);
+
+    if (currentState == STATE_SENSOR_ERROR) {
+      display.print("SENSOR!!");
+    } else {
+      display.print("!!");
+      display.setCursor(24, 0);
+      display.print("MOTOR");
+    }
+
+    display.setCursor(0, 18);
+
+    if (currentState == STATE_SENSOR_ERROR) {
+      display.setTextSize(1);
+      display.print("I2C / SENSOR ERROR");
+    } else {
+      display.print("STOPPED!");
+    }
+
+    display.setTextSize(1);
+    display.setCursor(0, 38);
+    display.print("Reason:");
+    display.print(faultReasonName(faultReason));
+
+    display.setCursor(70, 38);
+    display.print("T:");
+    display.print(objectTempC, 1);
+    display.print("C");
+
+    display.setCursor(0, 52);
+    display.print("Anom:");
+    display.print(lastAnomaly, 1);
+
+    display.setCursor(70, 52);
+    display.print("Reset:'r'");
+
+    display.display();
+    return;
   }
 
-  display.setCursor(92, 48);
-  if (motorInGracePeriod()) {
-    display.print("G:");
-    display.print(remainingGraceMs() / 1000UL);
-    display.print("s");
+  // ---------------------------------
+  // NORMAL / WARNING / STOP — dual page
+  // ---------------------------------
+
+  // Handle page swap timer
+  unsigned long nowMs = millis();
+  if (nowMs - lastOledPageSwapMs >= OLED_PAGE_SWAP_MS) {
+    lastOledPageSwapMs = nowMs;
+    oledPageB = !oledPageB;
+  }
+
+  // Draw common lines 1-3
+  drawOledCommonLines();
+
+  // Line 4: depends on current page
+  display.setCursor(0, 48);
+
+  if (!oledPageB) {
+    // PAGE A: Motor state + RSSI
+    display.print("Motor:");
+    display.print(motorOn ? "ON " : "OFF");
+
+    display.setCursor(60, 48);
+    if (WiFi.status() == WL_CONNECTED) {
+      display.print("RSSI:");
+      display.print(WiFi.RSSI());
+    } else {
+      display.print("WiFi:--");
+    }
+
   } else {
-    display.print("L:");
-    display.print(faultLatched ? "Y" : "N");
+    // PAGE B: WiFi + Cloud + IP last octet
+    display.print("Wi:");
+    if (WiFi.status() == WL_CONNECTED) {
+      display.print("OK ");
+    } else {
+      display.print("-- ");
+    }
+
+    display.print("Cl:");
+    if (cloudConnected()) {
+      display.print("OK ");
+    } else {
+      display.print("-- ");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
+      display.print(".");
+      display.print(ip[3]);
+    }
   }
 
   display.display();
@@ -697,7 +716,7 @@ void updateOLED() {
 
 
 // =====================================================================
-// LOCAL SERIAL KOMUTLAR
+// SERIAL COMMANDS
 // =====================================================================
 void handleSerialCommands() {
   while (Serial.available() > 0) {
@@ -735,18 +754,9 @@ int raw_feature_get_data(size_t offset, size_t length, float *out_ptr) {
 }
 
 SystemState labelToState(const char* label) {
-  if (strcmp(label, "STOP") == 0) {
-    return STATE_STOP;
-  }
-
-  if (strcmp(label, "NORMAL") == 0) {
-    return STATE_NORMAL;
-  }
-
-  if (strcmp(label, "WARNING") == 0) {
-    return STATE_WARNING;
-  }
-
+  if (strcmp(label, "STOP") == 0)    return STATE_STOP;
+  if (strcmp(label, "NORMAL") == 0)  return STATE_NORMAL;
+  if (strcmp(label, "WARNING") == 0) return STATE_WARNING;
   return STATE_STOP;
 }
 
@@ -759,7 +769,7 @@ void updateStableState(SystemState detectedState) {
     return;
   }
 
-  // Motor OFF iken state'i modelden güncellemiyoruz.
+  // When motor is OFF, do not update state from model output.
   if (!motorOn) {
     currentState = STATE_STOP;
     candidateState = STATE_STOP;
@@ -836,23 +846,23 @@ void runInference() {
   lastAnomaly = 0.0f;
 #endif
 
-  // anomalyCloud ve confidenceCloud sadece burada yazılır.
+  // anomalyCloud and confidenceCloud are only updated here.
   anomalyCloud = lastAnomaly;
   confidenceCloud = lastConfidence * 100.0f;
 
   SystemState detectedState = labelToState(bestLabel);
 
-  // Motor OFF iken model sonucu dikkate alınmaz.
+  // When motor is OFF, ignore model output.
   if (!motorOn) {
     detectedState = STATE_STOP;
     vibrationFaultCount = 0;
   }
 
-  // Vibration FAULT:
-  // - Motor ON
-  // - Grace bitmiş
-  // - Anomaly eşik üstünde
-  // - Üst üste 2 inference doğrulanmış
+  // Vibration FAULT conditions:
+  // - Motor is ON
+  // - Grace period is over
+  // - Anomaly is above threshold
+  // - Confirmed for 2 consecutive inferences
 #if EI_CLASSIFIER_HAS_ANOMALY != EI_ANOMALY_TYPE_UNKNOWN
   if (motorOn && !motorInGracePeriod() && result.anomaly > ANOMALY_THRESHOLD) {
     if (vibrationFaultCount < 255) {
@@ -926,7 +936,7 @@ void onResetFaultCommandChange() {
   if (resetFaultCommand) {
     resetFault();
 
-    // Push button / switch true kaldıysa tekrar false'a çek.
+    // Reset the flag if it stays true (push button behavior).
     resetFaultCommand = false;
 
     applyColor();
@@ -1012,7 +1022,7 @@ void setup() {
   systemState = stateName(currentState);
   faultReasonCloud = faultReasonName(faultReason);
 
-  // Başlangıçta mevcut lokal değerleri Cloud'a yaz.
+  // Write initial local values to Cloud.
   systemStateCode = stateToCode(currentState);
   confidenceCloud = 0.0f;
   objectTempCloud = objectTempC;
